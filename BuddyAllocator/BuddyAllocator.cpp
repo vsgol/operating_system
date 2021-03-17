@@ -32,13 +32,14 @@ namespace hse::arch_os {
   BuddyAllocator::BuddyAllocator(void *memoryStart, std::size_t memoryLength)
           : memoryStart{memoryStart}
           , root{0, memoryStart} {
+      memoryLength /= PAGESIZE;
       unsigned int additionalMemory = 0;
       while (sizeof(Node) * (memoryLength + upper_power_of_two(memoryLength)) > additionalMemory * PAGESIZE) {
           additionalMemory++;
           memoryLength--;
       }
       height = log2(memoryLength - 1);
-      additionalMemoryStart = (char *) memoryStart + additionalMemory * PAGESIZE;
+      additionalMemoryStart = (char *) memoryStart + memoryLength * PAGESIZE;
       root = Node(memoryLength - 1, height, additionalMemoryStart);
 
       for (unsigned int &freelist : freelists) {
@@ -50,10 +51,10 @@ namespace hse::arch_os {
   }
 
   void *BuddyAllocator::allocate(std::size_t order) {
-      if (order > height) {
+      unsigned int block = allocate_block(order);
+      if (block == -1) {
           return nullptr;
       }
-      unsigned int block = allocate_block(order);
       root.set_was_given(block, height, order, true);
       return get_block_pointer(block);
   }
@@ -63,6 +64,7 @@ namespace hse::arch_os {
       unsigned int block = shift / PAGESIZE;
 
       unsigned int order = root.find_depth(block, height);
+      root.set_was_given(block, height, order, false);
       add_block(block, order);
       unsigned int buddy = block ^(1 << order);
       while (root.is_available(buddy, height, order)) {
@@ -93,6 +95,8 @@ namespace hse::arch_os {
   }
 
   unsigned int BuddyAllocator::allocate_block(std::size_t order) {
+      if (order > height)
+          return -1;
       if (freelists[order] != -1) {
           unsigned int block = freelists[order];
           delete_block(block, order);
