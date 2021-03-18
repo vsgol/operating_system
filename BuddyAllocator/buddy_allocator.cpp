@@ -1,4 +1,4 @@
-#include "BuddyAllocator.hpp"
+#include "buddy_allocator.hpp"
 
 #include <iostream>
 

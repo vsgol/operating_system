@@ -4,5 +4,5 @@ project(BuddyAllocator)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_library(BuddyAllocator BuddyAllocator.cpp)
-add_executable(contest main.cpp BuddyAllocator.cpp)
+add_library(BuddyAllocator buddy_allocator.cpp)
+add_executable(contest main.cpp buddy_allocator.cpp)
