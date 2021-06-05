@@ -41,6 +41,7 @@ namespace hse::arch_os {
       height = log2(memoryLength - 1);
       additionalMemoryStart = (char *) memoryStart + memoryLength * PAGESIZE;
       root = Node(memoryLength - 1, height, additionalMemoryStart);
+      availableMemory = memoryLength;
 
       for (unsigned int &freelist : freelists) {
           freelist = -1;
@@ -66,7 +67,10 @@ namespace hse::arch_os {
       unsigned int order = root.find_depth(block, height);
       root.set_was_given(block, height, order, false);
       add_block(block, order);
-      unsigned int buddy = block ^(1 << order);
+      unsigned int buddy = block ^ (1 << order);
+      if (!check_block(buddy, order)) {
+          return;
+      }
       while (root.is_available(buddy, height, order)) {
           delete_block(buddy, order);
           delete_block(block, order);
@@ -75,6 +79,10 @@ namespace hse::arch_os {
           add_block(block, order);
           buddy = block ^ (1 << order);
       }
+  }
+
+  bool BuddyAllocator::check_block(unsigned int pageNumber, unsigned int order) const {
+      return block_size(order) + pageNumber <= availableMemory;
   }
 
   bool BuddyAllocator::collect_all_subtrees(Node *node, unsigned int pageNumber, unsigned int depth) {
@@ -95,8 +103,9 @@ namespace hse::arch_os {
   }
 
   unsigned int BuddyAllocator::allocate_block(std::size_t order) {
-      if (order > height)
+      if (order > height) {
           return -1;
+      }
       if (freelists[order] != -1) {
           unsigned int block = freelists[order];
           delete_block(block, order);

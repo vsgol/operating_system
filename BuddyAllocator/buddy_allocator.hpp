@@ -141,10 +141,12 @@ namespace hse::arch_os {
 
       Node root;
       unsigned int height;
+      unsigned int availableMemory;
       void *memoryStart;
       unsigned int freelists[ORDERS]{};
       void *additionalMemoryStart;
 
+      bool check_block(unsigned int pageNumber, unsigned int order) const;
 
       bool collect_all_subtrees(Node *node, unsigned int pageNumber, unsigned int depth);
 
