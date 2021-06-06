@@ -96,7 +96,7 @@ int format_tar_data(Tar &entry, const std::string &absolute_path, const std::str
             break;
         default:
             entry.type = Type::UNKNOWN;
-            ERROR("Error: Unknown filetype")
+            ERROR("Unknown filetype")
     }
     return 0;
 }
@@ -221,8 +221,9 @@ int tar_write(std::ostream &out_f, const std::string &path, const std::string &a
 }
 
 int tar_extract(std::istream &in_f, const std::string &working_dir) {
-    if (mkdir(working_dir.c_str(), 0777) < 0) {
-        EXIST_ERROR("Unable to create directory %s: %s", working_dir.c_str(), strerror(rc))
+    struct stat buffer{};
+    if (stat(working_dir.c_str(), &buffer) < 0) {
+        ERROR("No such directory %s", working_dir.c_str())
     }
     return extract_entries(in_f, working_dir);
 }
