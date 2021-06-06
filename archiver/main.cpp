@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     std::string working_dir;
 
     for (int i = 1; i < argc - 1; i++) {
-        if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--create") == 0) {
+        if (strcmp(argv[i], "-с") == 0 || strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--create") == 0) {
             if (create) {
                 std::cerr << "Флаг -c может быть указан только один раз\n";
                 return 1;

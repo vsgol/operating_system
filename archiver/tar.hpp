@@ -14,8 +14,8 @@ struct Tar {
     uid_t st_uid{};               // user id (octal)
     gid_t st_gid{};               // group id (octal)
     off_t st_size{};              // size (octal)
-    time_t atime{};               // time of last access
-    time_t mtime{};               // time of last modification
+    timespec atime{};               // time of last access
+    timespec mtime{};               // time of last modification
     Type type = Type::UNKNOWN;    // type
 };
 
