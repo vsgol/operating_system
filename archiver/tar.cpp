@@ -56,7 +56,6 @@ int format_tar_data(Tar &entry, const std::string &absolute_path, const std::str
         RC_ERROR("Cannot stat %s: %s", absolute_path.c_str(), strerror(rc))
     }
 
-    // start putting in new data (all fields are nullptr terminated ASCII strings)
     entry.relative_path = relative_path;
     entry.st_dev = st.st_dev;
     entry.st_ino = st.st_ino;
@@ -139,7 +138,7 @@ int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, std::st
             tar.link = all_files[{tar.st_dev, tar.st_ino}];
             tar.st_size = 0;
         }
-        all_files[{tar.st_dev, tar.st_ino}] = absolute_path;
+        all_files[{tar.st_dev, tar.st_ino}] = tar.relative_path;
         write_tar(out_f, tar);
 
         if (tar.type == Type::REGULAR) {
@@ -163,33 +162,48 @@ int extract_entries(std::istream &in_f, const std::string &working_dir) {
     std::stack<Tar> dirs{};
     while (try_read_tar(in_f, tar)) {
         std::string absolute_path = working_dir + tar.relative_path;
-        if (tar.type == Type::REGULAR) {
-            std::ofstream sf{absolute_path};
-
-            if (sf) {
-                for (off_t i = tar.st_size; i > 0; i--) {
-                    sf.put((char) in_f.get());
+        switch (tar.type) {
+            case Type::REGULAR : {
+                std::ofstream sf{absolute_path};
+                if (sf) {
+                    for (off_t i = tar.st_size; i > 0; i--) {
+                        sf.put((char) in_f.get());
+                    }
+                } else {
+                    ERROR("Could not open %s", absolute_path.c_str())
                 }
-            } else {
-                ERROR("Could not open %s", absolute_path.c_str())
+                break;
             }
-        } else if (tar.type == Type::HARDLINK) {
-            if (link(tar.link.c_str(), absolute_path.c_str()) < 0) {
-                EXIST_ERROR("Unable to create hardlink %s: %s", absolute_path.c_str(), strerror(rc))
+            case Type::HARDLINK: {
+                if (link((working_dir + tar.link).c_str(), absolute_path.c_str()) < 0) {
+                    EXIST_ERROR("Unable to create hardlink %s: %s", absolute_path.c_str(), strerror(rc))
+                }
+                break;
             }
-        } else if (tar.type == Type::SYMLINK) {
-            if (symlink(tar.link.c_str(), absolute_path.c_str()) < 0) {
-                EXIST_ERROR("Unable to make symlink %s: %s", absolute_path.c_str(), strerror(rc))
+            case Type::SYMLINK: {
+                if (symlink(tar.link.c_str(), absolute_path.c_str()) < 0) {
+                    EXIST_ERROR("Unable to make symlink %s: %s", absolute_path.c_str(), strerror(rc))
+                }
+                break;
             }
-        } else if (tar.type == Type::DIRECTORY) {
-            if (mkdir(absolute_path.c_str(), tar.st_mode) < 0) {
-                EXIST_ERROR("Unable to create directory %s: %s", absolute_path.c_str(), strerror(rc))
+            case Type::DIRECTORY: {
+                if (mkdir(absolute_path.c_str(), tar.st_mode) < 0) {
+                    EXIST_ERROR("Unable to create directory %s: %s", absolute_path.c_str(), strerror(rc))
+                }
+                dirs.push(std::move(tar));
+                continue;
             }
-            dirs.push(std::move(tar));
-            continue;
-        } else if (tar.type == Type::FIFO) {
-            if (mkfifo(absolute_path.c_str(), tar.st_mode) < 0) {
-                EXIST_ERROR("Unable to make pipe %s: %s", absolute_path.c_str(), strerror(rc))
+            case Type::FIFO: {
+                if (mkfifo(absolute_path.c_str(), tar.st_mode) < 0) {
+                    EXIST_ERROR("Unable to make pipe %s: %s", absolute_path.c_str(), strerror(rc))
+                }
+                break;
+            }
+            case Type::SOCK: {
+                ERROR("Unsupported file type")
+            }
+            case Type::UNKNOWN: {
+                ERROR("Unknown file type")
             }
         }
         set_mode(working_dir, tar);
