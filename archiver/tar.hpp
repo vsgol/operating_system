@@ -14,13 +14,14 @@ struct Tar {
     uid_t st_uid{};               // user id (octal)
     gid_t st_gid{};               // group id (octal)
     off_t st_size{};              // size (octal)
-    timespec atime{};               // time of last access
-    timespec mtime{};               // time of last modification
+    timespec atime{};             // time of last access
+    timespec mtime{};             // time of last modification
     Type type = Type::UNKNOWN;    // type
 };
 
 int tar_extract(std::istream &in_f, const std::string &working_dir);
 
-int tar_write(std::ostream &out_f, const std::string &path, const std::string &archive_file);
+int tar_write(std::ostream &out_f, const std::string &path,
+              const std::string &archive_file, const std::string &executable_file);
 
 #endif //ARCHIVER_TAR_HPP

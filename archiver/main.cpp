@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     if (create) {
         std::ofstream out_f(argv[argc - 1], std::ios::binary);
 
-        if (tar_write(out_f, working_dir, argv[argc - 1]) < 0) {
+        if (tar_write(out_f, working_dir, argv[argc - 1], argv[0]) < 0) {
             return -1;
         }
     } else {

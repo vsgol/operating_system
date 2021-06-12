@@ -14,7 +14,9 @@
 #define RC_ERROR(fmt, ...) const int rc = errno; ERROR(fmt, ##__VA_ARGS__); return -1;
 #define EXIST_ERROR(fmt, ...) const int rc = errno; if (rc != EEXIST) { ERROR(fmt, ##__VA_ARGS__); return -1; }
 
-void set_mode(const std::string &working_dir, const Tar &tar);
+using std::string;
+
+void set_mode(const string &working_dir, const Tar &tar);
 
 void write_tar(std::ostream &out_f, const Tar &tar) {
     out_f << tar.relative_path << '\0';
@@ -50,7 +52,7 @@ bool try_read_tar(std::istream &in_f, Tar &tar) {
     return true;
 }
 
-int format_tar_data(Tar &entry, const std::string &absolute_path, const std::string &relative_path) {
+int format_tar_data(Tar &entry, const string &absolute_path, const string &relative_path) {
     struct stat st{};
     if (lstat(absolute_path.c_str(), &st)) {
         RC_ERROR("Cannot stat %s: %s", absolute_path.c_str(), strerror(rc))
@@ -79,7 +81,7 @@ int format_tar_data(Tar &entry, const std::string &absolute_path, const std::str
             if (readlink(absolute_path.c_str(), tmp, entry.st_size) < 0) {
                 RC_ERROR("Could not read link %s: %s", absolute_path.c_str(), strerror(rc))
             }
-            entry.link = std::string{tmp};
+            entry.link = string{tmp};
             delete[] tmp;
             entry.st_size = 0;
             break;
@@ -100,8 +102,9 @@ int format_tar_data(Tar &entry, const std::string &absolute_path, const std::str
     return 0;
 }
 
-int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, std::string> &all_files,
-                  const std::string &path, const std::string &relative_path, const std::string &archive_file) {
+int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, string> &all_files,
+                  const string &path, const string &relative_path,
+                  const string &archive_file, const string &executable_file) {
     // add new data
     Tar tar{};  // current entry
     DIR *d;
@@ -114,9 +117,9 @@ int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, std::st
         if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0) {
             continue;
         }
-        std::string file_name = dir->d_name;
-        std::string absolute_path = path + file_name;
-        if (archive_file == absolute_path) {
+        string file_name = dir->d_name;
+        string absolute_path = path + file_name;
+        if (archive_file == absolute_path || archive_file == executable_file) {
             continue;
         }
         if (format_tar_data(tar, absolute_path, relative_path + file_name) < 0) {
@@ -126,9 +129,10 @@ int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, std::st
             continue;
         }
         if (tar.type == Type::DIRECTORY) {
-            std::string child = absolute_path + '/';
+            string child = absolute_path + '/';
             write_tar(out_f, tar);
-            if (write_entries(out_f, all_files, child, relative_path + file_name + '/', archive_file) < 0) {
+            if (write_entries(out_f, all_files, child, relative_path + file_name + '/', archive_file, executable_file) <
+                0) {
                 ERROR("Recurse error")
             }
             continue;
@@ -157,11 +161,11 @@ int write_entries(std::ostream &out_f, std::map<std::pair<dev_t, ino_t>, std::st
     return 0;
 }
 
-int extract_entries(std::istream &in_f, const std::string &working_dir) {
+int extract_entries(std::istream &in_f, const string &working_dir) {
     Tar tar;
     std::stack<Tar> dirs{};
     while (try_read_tar(in_f, tar)) {
-        std::string absolute_path = working_dir + tar.relative_path;
+        string absolute_path = working_dir + tar.relative_path;
         switch (tar.type) {
             case Type::REGULAR : {
                 std::ofstream sf{absolute_path};
@@ -216,25 +220,24 @@ int extract_entries(std::istream &in_f, const std::string &working_dir) {
     return 0;
 }
 
-void set_mode(const std::string &working_dir, const Tar &tar) {
-    std::string absolute_path = working_dir + tar.relative_path;
+void set_mode(const string &working_dir, const Tar &tar) {
+    string absolute_path = working_dir + tar.relative_path;
     lchown(absolute_path.c_str(), tar.st_uid, tar.st_gid);
     lchmod(absolute_path.c_str(), tar.st_mode);
     timespec tmp[2] = {tar.atime, tar.mtime};
     utimensat(AT_FDCWD, absolute_path.c_str(), tmp, AT_SYMLINK_NOFOLLOW);
 }
 
-int tar_write(std::ostream &out_f, const std::string &path, const std::string &archive_file) {
-    // write entries first
-    std::map<std::pair<dev_t, ino_t>, std::string> all_files{};
-    std::string tmp;
-    if (write_entries(out_f, all_files, path, tmp, archive_file) < 0) {
+int tar_write(std::ostream &out_f, const string &path, const string &archive_file, const string &executable_file) {
+    std::map<std::pair<dev_t, ino_t>, string> all_files{};
+    string tmp;
+    if (write_entries(out_f, all_files, path, tmp, archive_file, executable_file) < 0) {
         ERROR("Failed to write entries")
     }
     return 0;
 }
 
-int tar_extract(std::istream &in_f, const std::string &working_dir) {
+int tar_extract(std::istream &in_f, const string &working_dir) {
     struct stat buffer{};
     if (stat(working_dir.c_str(), &buffer) < 0) {
         ERROR("No such directory %s", working_dir.c_str())
